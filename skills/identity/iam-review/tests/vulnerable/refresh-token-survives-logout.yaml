@@ -42,4 +42,3 @@ expected_findings:
   - id: IAM-SESS-05
     title: Relying-party cache accepts access after IdP revocation
     severity: Medium
-
