@@ -366,6 +366,70 @@ IAM-ZT-10: Implicit trust for internal service-to-service communication
 
 ---
 
+### Step 8: Session Revocation and Token Continuity
+
+**Objective:** Verify that logout, account risk changes, credential resets, and explicit revocation events actually terminate usable access instead of only clearing the visible browser session.
+
+**NIST SP 800-63B Reference:** Session management, reauthentication, and authenticator lifecycle requirements
+**NIST SP 800-207 Reference:** Dynamic authentication and authorization enforcement
+**OAuth 2.0 Security BCP Reference:** Refresh-token rotation or sender-constrained refresh tokens for public clients
+
+#### Review Checklist
+
+```
+IAM-SESS-01: Logout clears only the browser cookie; refresh tokens remain valid
+IAM-SESS-02: Refresh tokens are bearer tokens without rotation, sender constraint, or reuse detection
+IAM-SESS-03: Critical risk events do not revoke refresh tokens or terminate active sessions
+IAM-SESS-04: CAE / continuous evaluation coverage is claimed but not mapped to resources and clients
+IAM-SESS-05: Relying-party session caches continue accepting access after IdP revocation
+IAM-SESS-06: Remember-me / trusted-device controls extend sessions without reauthentication limits
+IAM-SESS-07: Offline/mobile refresh-token flows lack absolute lifetime and device-loss handling
+IAM-SESS-08: Session termination has not been tested for disablement, password reset, MFA change, device noncompliance, risk change, logout, and admin revoke
+```
+
+#### Evidence Gate
+
+Treat missing evidence as **Not Evaluable** for low-risk systems and as a finding for sensitive systems, privileged access, regulated data, or internet-facing administration. Do not flag long-lived access tokens by lifetime alone when the design proves continuous evaluation and fail-closed revocation.
+
+| Evidence Area | Required Evidence | Acceptable Benign Pattern | Finding Pattern |
+|---|---|---|---|
+| Access-token lifetime | Token TTLs by client/resource, reauthentication policy, CAE or equivalent event support | Longer access tokens only for CAE-capable clients/resources with documented critical-event enforcement | Long token lifetime with no reauth, no CAE, or unknown resource coverage |
+| Refresh-token controls | Rotation settings, sender constraint, reuse detection, absolute lifetime, revocation API evidence | Public clients use rotation or sender-constrained refresh tokens with reuse detection and explicit revoke support | Bearer refresh tokens survive password reset, logout, or device loss |
+| Logout propagation | RP-initiated logout behavior, IdP session handling, app-session destruction, token revocation scope | Report distinguishes app session, IdP session, other device sessions, and refresh-token revocation | Logout deletes only a local cookie while background clients continue minting tokens |
+| Critical-event enforcement | Test results for user disablement, password reset, MFA reset, high user risk, device noncompliance, and admin revoke | Events terminate or block active sessions near real time for covered clients/resources; gaps are documented | Sessions remain usable until natural expiry after critical identity events |
+| Session caches | RP/API cache invalidation design, token introspection or denylist TTL, gateway/session-store invalidation | Caches fail closed or expire quickly enough to honor revocation SLAs | Relying-party cache accepts revoked tokens longer than policy permits |
+| Remembered devices | Trusted-device duration, idle timeout, overall timeout, step-up triggers for sensitive actions | Remember-me is bounded and does not bypass required reauthentication or step-up | Remembered device bypasses AAL2/AAL3 reauthentication expectations |
+
+#### Platform-specific checks
+
+| Platform | Mechanism | What to verify |
+|---|---|---|
+| **AWS** | STS session duration, IAM Identity Center sessions, Cognito refresh-token settings | Max session duration, global sign-out, refresh-token revocation, device remembering, and API cache behavior |
+| **Azure / Entra ID** | Continuous Access Evaluation, token lifetime policy, sign-in logs, refresh-token revoke events | CAE-capable clients/resources, critical-event propagation, revoke refresh sessions, and Conditional Access session controls |
+| **GCP** | Google Workspace session controls, OAuth app access, BeyondCorp signals | Session length, OAuth app token revocation, device trust, context-aware access, and revocation audit evidence |
+| **OIDC / OAuth apps** | RP-Initiated Logout, back-channel/front-channel logout, token endpoint, refresh-token rotation | RP session destruction, IdP session handling, refresh-token replay detection, and explicit revocation endpoint behavior |
+
+**Severity Classification:**
+
+| Finding | Severity | Rationale |
+|---|---|---|
+| Privileged or admin refresh token remains valid after account disablement or admin revoke | **Critical** | Compromised privileged access can persist after emergency containment |
+| Public-client refresh tokens are bearer tokens with no rotation or sender constraint | **High** | Copied tokens can continue minting access tokens without possession proof |
+| Logout only clears app cookie while refresh tokens remain usable | **High** | Users and auditors believe access ended when it did not |
+| CAE / critical-event coverage undocumented for sensitive resources | **Medium** | Continuous enforcement cannot be trusted without mapped coverage and tests |
+| Remember-me duration exceeds reauthentication policy without step-up | **Medium** | Convenience control bypasses session assurance requirements |
+
+**False positive guardrails:**
+
+- Do not flag a CAE-aware design solely because access tokens last longer than a static TTL baseline; require evidence that critical events are enforced for the relevant clients and resource providers.
+- Do not require IdP global logout for every application if the report documents RP session destruction, token revocation behavior, and the residual risk of IdP session persistence.
+- Do not flag offline/mobile clients merely for using refresh tokens; flag them when rotation, sender constraint, reuse detection, absolute lifetime, explicit revoke, or device-loss handling is missing.
+- If evidence is incomplete, label the item **Not Evaluable** unless the system is sensitive enough that missing proof is itself a risk.
+
+**Output:** Add a session/token continuity table with columns: Flow, Token Type, Lifetime, Revocation Trigger Tested, RP Session Result, Refresh Token Result, CAE/Critical Event Coverage, Evidence Source, Assessment.
+
+---
+
 ## Output Format
 
 ### Findings Table
@@ -410,9 +474,15 @@ For each finding, produce a row with:
 - Stale Accounts (Step 5): [count]
 - JIT Access (Step 6): [count]
 - Zero Trust (Step 7): [count]
+- Session Revocation / Token Continuity (Step 8): [count]
 
 ### Detailed Findings
 [Findings table — see above]
+
+### Session and Token Continuity
+| Flow | Token Type | Lifetime | Revocation Trigger Tested | RP Session Result | Refresh Token Result | CAE/Critical Event Coverage | Evidence Source | Assessment |
+|---|---|---|---|---|---|---|---|---|
+| [Login / refresh / logout / risk event] | [access / refresh / session cookie] | [duration] | [event tested] | [terminated / persisted / unknown] | [revoked / rotated / persisted / unknown] | [covered / partial / none] | [log / config / test] | [Pass / Finding / Not Evaluable] |
 
 ### Remediation Roadmap
 [Prioritized actions: immediate (0-7 days), short-term (30 days), medium-term (90 days)]
@@ -428,9 +498,9 @@ For each finding, produce a row with:
 | Priority | Timeframe | Example Findings |
 |---|---|---|
 | **P0 — Immediate** | 0-7 days | Root/global admin without MFA, former employee with active access, wildcard admin policies |
-| **P1 — Urgent** | 8-30 days | No JIT for admin access, service account keys > 1 year old, no stale account process |
+| **P1 — Urgent** | 8-30 days | No JIT for admin access, refresh tokens remain valid after disablement/revoke, service account keys > 1 year old, no stale account process |
 | **P2 — Important** | 31-90 days | No phishing-resistant MFA, incomplete identity inventory, no access review cadence |
-| **P3 — Planned** | 91-180 days | Zero trust maturity gaps, device trust integration, continuous access evaluation |
+| **P3 — Planned** | 91-180 days | Zero trust maturity gaps, device trust integration, continuous access evaluation coverage documentation |
 
 ---
 
@@ -472,7 +542,7 @@ This skill processes user-supplied content including IAM policies, access config
 | **5.3** | Disable Dormant Accounts | Step 5 |
 | **5.4** | Restrict Administrator Privileges to Dedicated Administrator Accounts | Steps 3, 6 |
 | **5.5** | Establish and Maintain an Inventory of Service Accounts | Steps 1, 4 |
-| **5.6** | Centralize Account Management | Steps 1, 7 |
+| **5.6** | Centralize Account Management | Steps 1, 7, 8 |
 
 ### Control 6 — Access Control Management
 
@@ -484,7 +554,7 @@ This skill processes user-supplied content including IAM policies, access config
 | **6.4** | Require MFA for Remote Network Access | Step 2 |
 | **6.5** | Require MFA for Administrative Access | Step 2 |
 | **6.6** | Establish and Maintain an Inventory of Authentication and Authorization Systems | Step 1 |
-| **6.7** | Centralize Access Control | Step 7 |
+| **6.7** | Centralize Access Control | Steps 7, 8 |
 | **6.8** | Define and Maintain Role-Based Access Control | Step 3 |
 
 ---
@@ -502,6 +572,14 @@ This skill processes user-supplied content including IAM policies, access config
 | **5.1.7** | Multi-Factor Crypto Device | Hardware token; meets AAL3 requirements |
 | **5.2.3** | Reauthentication | AAL2 requires reauth every 12 hours or 30 minutes idle; AAL3 every 12 hours or 15 minutes idle |
 
+### Appendix: Session Continuity References
+
+| Source | Topic | Key Requirement |
+|---|---|---|
+| [OAuth 2.0 Security BCP / RFC 9700](https://www.rfc-editor.org/rfc/rfc9700) | Refresh-token protection | Public-client refresh tokens should be sender-constrained or rotated; replay should be detectable |
+| [OpenID Connect RP-Initiated Logout 1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html) | Logout propagation | Relying parties can initiate logout with the OpenID Provider, but app, IdP, and token sessions still need separate evidence |
+| [Microsoft Entra Continuous Access Evaluation](https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-continuous-access-evaluation) | Critical-event enforcement | CAE-capable clients and resources can react to user, session, and policy events without waiting for static token expiry |
+
 ---
 
 ## Version History
@@ -509,3 +587,4 @@ This skill processes user-supplied content including IAM policies, access config
 | Version | Date | Changes |
 |---|---|---|
 | 1.0.0 | 2025-03-06 | Initial release |
+| 1.1.0 | 2026-06-09 | Added session revocation and refresh-token continuity evidence gates |
