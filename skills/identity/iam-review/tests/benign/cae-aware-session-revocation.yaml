@@ -1,0 +1,44 @@
+name: cae-aware-session-revocation
+description: >
+  Longer-lived access tokens are acceptable because CAE-capable clients and
+  resource providers enforce critical events, refresh tokens are protected,
+  and logout/session revocation behavior is tested.
+environment:
+  identity_provider: Microsoft Entra ID
+  access_token_lifetime: 28h_cae_session
+  cae_capable_clients: true
+  resource_provider_coverage:
+    exchange_online: cae_supported
+    sharepoint_online: cae_supported
+    custom_api_gateway: token_introspection_with_5m_cache_ttl
+  refresh_token:
+    rotation: enabled
+    sender_constrained: true
+    reuse_detection: enabled
+    absolute_lifetime: 30d
+    revoked_on_password_reset: true
+    revoked_on_admin_revoke: true
+  logout:
+    rp_initiated_logout: implemented
+    app_session_destroyed: true
+    idp_session_handled: documented
+    refresh_token_revoked: true
+    other_device_sessions_policy: documented
+  critical_event_enforcement:
+    user_disabled: near_real_time
+    password_reset: near_real_time
+    mfa_reset: near_real_time
+    high_user_risk: near_real_time
+    device_noncompliance: near_real_time
+    admin_revoke: near_real_time
+  remembered_device:
+    duration: 14d
+    idle_timeout: 30m
+    overall_timeout: 12h
+    step_up_for_sensitive_actions: true
+expected_assessment:
+  session_continuity: Pass
+  false_positive_guardrail: >
+    Do not flag access-token lifetime by itself; require evidence that CAE,
+    refresh-token protection, logout propagation, and critical-event tests are
+    missing before reporting a finding.

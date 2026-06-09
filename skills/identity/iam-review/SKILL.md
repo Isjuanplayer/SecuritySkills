@@ -428,6 +428,8 @@ Treat missing evidence as **Not Evaluable** for low-risk systems and as a findin
 
 **Output:** Add a session/token continuity table with columns: Flow, Token Type, Lifetime, Revocation Trigger Tested, RP Session Result, Refresh Token Result, CAE/Critical Event Coverage, Evidence Source, Assessment.
 
+**Test fixtures:** Use `tests/vulnerable/refresh-token-survives-logout.yaml` to verify the skill catches refresh-token continuity after logout/revocation, and `tests/benign/cae-aware-session-revocation.yaml` to verify the false-positive guardrail for CAE-aware, fail-closed session designs.
+
 ---
 
 ## Output Format
@@ -587,4 +589,4 @@ This skill processes user-supplied content including IAM policies, access config
 | Version | Date | Changes |
 |---|---|---|
 | 1.0.0 | 2025-03-06 | Initial release |
-| 1.1.0 | 2026-06-09 | Added session revocation and refresh-token continuity evidence gates |
+| 1.1.0 | 2026-06-09 | Added session revocation and refresh-token continuity evidence gates with vulnerable and benign fixtures |

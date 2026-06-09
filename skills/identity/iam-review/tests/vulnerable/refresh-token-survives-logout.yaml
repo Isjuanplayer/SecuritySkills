@@ -1,0 +1,45 @@
+name: refresh-token-survives-logout
+description: >
+  Logout only clears the local application cookie while bearer refresh tokens
+  remain valid and can continue minting access tokens after user logout,
+  password reset, or administrative revoke.
+environment:
+  identity_provider: generic_oidc
+  client_type: public_mobile_app
+  access_token_lifetime: 1h
+  refresh_token:
+    token_type: bearer
+    rotation: disabled
+    sender_constrained: false
+    reuse_detection: missing
+    absolute_lifetime: 90d
+    revoked_on_password_reset: false
+    revoked_on_admin_revoke: manual_only
+  logout:
+    app_cookie_deleted: true
+    rp_initiated_logout: missing
+    idp_session_handled: unknown
+    refresh_token_revoked: false
+    other_device_sessions_revoked: false
+  critical_event_enforcement:
+    user_disabled: access_tokens_valid_until_expiry
+    password_reset: refresh_tokens_still_valid
+    mfa_reset: not_tested
+    device_noncompliance: not_tested
+  relying_party_cache:
+    revoked_token_cache_invalidation: missing
+    accepts_until_cache_ttl: 24h
+expected_findings:
+  - id: IAM-SESS-01
+    title: Logout does not revoke refresh-token continuity
+    severity: High
+  - id: IAM-SESS-02
+    title: Public-client refresh tokens lack rotation or sender constraint
+    severity: High
+  - id: IAM-SESS-03
+    title: Critical risk events do not terminate active token continuity
+    severity: Critical
+  - id: IAM-SESS-05
+    title: Relying-party cache accepts access after IdP revocation
+    severity: Medium
+
